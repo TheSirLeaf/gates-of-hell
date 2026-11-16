@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ForgeCard } from '../forge/ForgeCard';
 import { useAuth } from '../lib/auth';
+import { Icon } from './Icon';
 import { formatNumber, type RollResult } from '../lib/dice';
 import { postChat, postRoll } from '../lib/roll';
 import { supabase } from '../lib/supabase';
@@ -13,8 +15,8 @@ const HELP = [
   'Sem barra, a mensagem vira conversa.',
 ];
 
-export function ChatPanel({ characters }: { characters: Character[] }) {
-  const { profile, isMaster } = useAuth();
+export function ChatPanel({ characters, onClose }: { characters: Character[]; onClose?: () => void }) {
+  const { profile, masterAccess } = useAuth();
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [charId, setCharId] = useState<string>('');
@@ -76,12 +78,17 @@ export function ChatPanel({ characters }: { characters: Character[] }) {
           <h2 className="chat__title">Chat &amp; rolagens</h2>
         </div>
         <div className="row gap-sm">
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowHelp((v) => !v)}>
+          <button type="button" className="icon-btn" onClick={() => setShowHelp((v) => !v)} aria-label="Ajuda" title="Como rolar">
             ?
           </button>
-          {isMaster && (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={clearChat} title="Limpar histórico">
-              Limpar
+          {masterAccess && (
+            <button type="button" className="icon-btn" onClick={clearChat} title="Limpar histórico" aria-label="Limpar histórico">
+              <Icon name="trash" size={16} />
+            </button>
+          )}
+          {onClose && (
+            <button type="button" className="icon-btn chat__close" onClick={onClose} aria-label="Fechar chat">
+              <Icon name="close" size={16} />
             </button>
           )}
         </div>
@@ -145,6 +152,8 @@ function MessageView({ m, own }: { m: Message; own: boolean }) {
       </header>
       {m.kind === 'chat' ? (
         <p className="msg__body">{m.body}</p>
+      ) : m.kind === 'forge' && m.payload ? (
+        <ForgeCard p={m.payload} />
       ) : (
         <div className="msg__rolls">
           {(m.rolls ?? []).map((r, i) => (

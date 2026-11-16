@@ -1,7 +1,7 @@
 export function SetupNeeded() {
   return (
     <div className="auth">
-      <div className="auth__card card">
+      <div className="auth__card">
         <div className="eyebrow">Gates of Hell</div>
         <h1>Falta conectar o Supabase</h1>
         <p>

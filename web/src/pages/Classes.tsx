@@ -44,7 +44,7 @@ export function Classes() {
 
   return (
     <section>
-      <div className="section-head">
+      <div className="page-head">
         <div>
           <div className="eyebrow">Mestre</div>
           <h1 className="page-title">Classes</h1>
@@ -60,7 +60,7 @@ export function Classes() {
 
       <div className="grid-cards">
         {classes.map((c) => (
-          <article key={c.id} className="card">
+          <article key={c.id} className="panel">
             <h3 className="section-title">{c.name}</h3>
             <p className="muted">{c.summary}</p>
             <p>
@@ -104,7 +104,7 @@ function ClassForm({ initial, onSave, onCancel }: { initial: Draft; onSave: (d: 
 
   return (
     <form
-      className="card form"
+      className="panel form"
       onSubmit={(e) => {
         e.preventDefault();
         if (!d.name.trim()) return;

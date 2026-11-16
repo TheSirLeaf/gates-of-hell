@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Gauge } from '../components/Gauge';
+import { Icon } from '../components/Icon';
 import { Inventory } from '../components/Inventory';
-import { NumInput } from '../components/NumInput';
+import { Stepper } from '../components/Stepper';
+import { useAuditView } from '../lib/activity';
 import { useAuth } from '../lib/auth';
 import { attrTotal, characterResistance, classBonus, skillLimit, skillsWithPoints } from '../lib/character';
 import { useGame } from '../lib/game';
@@ -19,20 +22,23 @@ import {
   SKILLS,
   STARTING_ROLLS,
   testExpression,
-  type AttrKey,
 } from '../rules';
 
 export function CharacterSheet() {
   const { id } = useParams();
   const { characters, loading } = useGame();
+  const { profile } = useAuth();
   const source = characters.find((c) => c.id === id);
+
+  // Admin em modo suporte abrindo ficha de outra pessoa → o mestre é avisado.
+  useAuditView('character', source?.id ?? '', source?.name ?? '', Boolean(source && source.owner_id !== profile?.id));
 
   if (loading && !source) return <p className="muted">Carregando…</p>;
   if (!source) {
     return (
-      <div>
+      <div className="empty">
         <p>Ficha não encontrada (ou você não tem acesso a ela).</p>
-        <Link to="/fichas">← Voltar</Link>
+        <Link to="/fichas">← Voltar às fichas</Link>
       </div>
     );
   }
@@ -93,162 +99,162 @@ function Sheet({ source }: { source: Character }) {
     patch({ class_id: classId || null, chosen_ability: keepAbility ? c.chosen_ability : '' });
   }
 
-  function setSkill(key: string, value: number) {
-    patch({ skills: { ...c.skills, [key]: value } });
-  }
+  const setSkill = (key: string, value: number) => patch({ skills: { ...c.skills, [key]: value } });
+
+  const resource = (name: string, tone: 'vida' | 'postura' | 'stamina', cur: number, max: number, kCur: keyof Character, kMax: keyof Character) => (
+    <Gauge cur={cur} max={max} tone={tone} label={name}>
+      <Stepper label={`${name} atual`} value={cur} max={9999} onChange={(n) => patch({ [kCur]: n } as Partial<Character>)} size="sm" />
+      <label className="gauge__max">
+        máx
+        <Stepper label={`${name} máximo`} value={max} max={9999} onChange={(n) => patch({ [kMax]: n } as Partial<Character>)} size="sm" />
+      </label>
+    </Gauge>
+  );
 
   return (
     <div className="sheet">
-      <div className="section-head">
-        <div>
-          <Link to="/fichas" className="muted">
-            ← Fichas
-          </Link>
-          <h1 className="page-title">{c.name || 'Sem nome'}</h1>
+      <Link to="/fichas" className="backlink">
+        <Icon name="back" size={16} /> Fichas
+      </Link>
+
+      {/* HERÓI */}
+      <header className="hero">
+        <span className="hero__avatar">{(c.name || '?').charAt(0).toUpperCase()}</span>
+        <div className="hero__main">
+          <input className="hero__name" value={c.name} maxLength={80} onChange={(e) => patch({ name: e.target.value })} aria-label="Nome do personagem" placeholder="Nome do personagem" />
+          <div className="hero__fields">
+            <label>
+              <span>Classe</span>
+              <select className="input" value={c.class_id ?? ''} onChange={(e) => selectClass(e.target.value)}>
+                <option value="">Sem classe</option>
+                {classes.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Raça</span>
+              <input className="input" value={c.race} maxLength={60} onChange={(e) => patch({ race: e.target.value })} placeholder="Ex.: Humano" />
+            </label>
+          </div>
         </div>
-        <div className="row gap-sm">
+        <div className="hero__side">
           <span className={`save save--${status}`}>
-            {status === 'saving' ? 'Salvando…' : status === 'saved' ? 'Salvo' : status === 'error' ? 'Erro ao salvar' : ''}
+            {status === 'saving' ? 'Salvando…' : status === 'saved' ? '✓ Salvo' : status === 'error' ? 'Erro ao salvar' : ''}
           </span>
           <button className="btn btn--danger btn--sm" onClick={() => void remove()}>
-            Excluir
+            <Icon name="trash" size={14} /> Excluir
           </button>
         </div>
-      </div>
+      </header>
       {(error || msg) && <p className="alert">{error ?? msg}</p>}
 
-      {/* PERFIL */}
-      <section className="card">
-        <div className="eyebrow">Perfil</div>
-        <div className="form-grid">
-          <label className="field field--wide">
-            <span>Nome</span>
-            <input className="input" value={c.name} maxLength={80} onChange={(e) => patch({ name: e.target.value })} />
-          </label>
-          <label className="field">
-            <span>Raça</span>
-            <input className="input" value={c.race} maxLength={60} onChange={(e) => patch({ race: e.target.value })} placeholder="Ex.: Humano" />
-          </label>
-          <label className="field">
-            <span>Classe</span>
-            <select className="input" value={c.class_id ?? ''} onChange={(e) => selectClass(e.target.value)}>
-              <option value="">Sem classe</option>
-              {classes.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {cls && (
-          <div className="class-box">
-            <p>{cls.summary}</p>
-            <p className="muted">{cls.benefits}</p>
-            {cls.abilities.length > 0 && (
-              <label className="field">
-                <span>Habilidade inicial (escolha uma)</span>
-                <select className="input" value={c.chosen_ability} onChange={(e) => patch({ chosen_ability: e.target.value })}>
-                  <option value="">—</option>
-                  {cls.abilities.map((a) => (
-                    <option key={a.name} value={a.name}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {cls.abilities
-              .filter((a) => a.name === c.chosen_ability)
-              .map((a) => (
-                <div key={a.name} className="ability">
-                  <strong>{a.name}</strong> <span className="badge">-{a.cost} Stamina</span>
-                  <p className="pre">{a.description}</p>
-                </div>
-              ))}
-          </div>
-        )}
-      </section>
+      {cls && (
+        <section className="panel class-box">
+          <p>{cls.summary}</p>
+          <p className="muted">{cls.benefits}</p>
+          {cls.abilities.length > 0 && (
+            <>
+              <div className="chips">
+                {cls.abilities.map((a) => (
+                  <button
+                    key={a.name}
+                    type="button"
+                    className={`chip chip--button ${c.chosen_ability === a.name ? 'chip--on' : ''}`}
+                    onClick={() => patch({ chosen_ability: c.chosen_ability === a.name ? '' : a.name })}
+                  >
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+              <p className="hint">Escolha uma habilidade inicial.</p>
+            </>
+          )}
+          {cls.abilities
+            .filter((a) => a.name === c.chosen_ability)
+            .map((a) => (
+              <div key={a.name} className="ability">
+                <b>{a.name}</b> <span className="badge">−{a.cost} Stamina</span>
+                <p className="pre">{a.description}</p>
+              </div>
+            ))}
+        </section>
+      )}
 
-      {/* STATUS */}
-      <section className="card">
-        <div className="section-head">
-          <div>
-            <div className="eyebrow">Status</div>
-            <h2 className="section-title">Recursos</h2>
-          </div>
-          <button className="btn btn--sm" onClick={() => void rollStarting()} title="Vida = Físico + classe · Postura = Físico · Stamina = Espiritual + classe">
-            Rolar iniciais
+      {/* RECURSOS */}
+      <section className="panel">
+        <div className="panel__head">
+          <h2 className="panel__title">Vitalidade</h2>
+          <button className="btn btn--sm btn--ghost" onClick={() => void rollStarting()} title="Vida = Físico + classe · Postura = Físico · Stamina = Espiritual + classe">
+            <Icon name="dice" size={15} /> Rolar iniciais
           </button>
         </div>
-        <div className="status-grid">
-          <Resource name="Vida" cls="vida" cur={c.vida} max={c.vida_max} onCur={(n) => patch({ vida: n })} onMax={(n) => patch({ vida_max: n })} />
-          <Resource name="Postura" cls="postura" cur={c.postura} max={c.postura_max} onCur={(n) => patch({ postura: n })} onMax={(n) => patch({ postura_max: n })} />
-          <Resource name="Stamina" cls="stamina" cur={c.stamina} max={c.stamina_max} onCur={(n) => patch({ stamina: n })} onMax={(n) => patch({ stamina_max: n })} />
-          <div className="status-card status-card--res">
-            <div className="eyebrow">Resistência</div>
-            <div className="status-card__big">{resistencia}</div>
-            <div className="muted">{armorLabel(c.armor_kind, c.armor_material)}</div>
-          </div>
-        </div>
-
-        <div className="form-grid">
-          <label className="field">
-            <span>Armadura</span>
-            <select
-              className="input"
-              value={c.armor_kind ?? ''}
-              onChange={(e) => {
-                const kind = armorByKey(e.target.value);
-                const first = kind ? materialsOf(kind)[0] : null;
-                patch({ armor_kind: kind?.key ?? null, armor_material: first ?? null });
-              }}
-            >
-              <option value="">Sem armadura</option>
-              {ARMORS.map((a) => (
-                <option key={a.key} value={a.key}>
-                  {a.name} +{a.bonus} ({a.rank})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Material</span>
-            <select className="input" disabled={!armor} value={c.armor_material ?? ''} onChange={(e) => patch({ armor_material: e.target.value || null })}>
-              {armor ? (
-                materialsOf(armor).map((m) => (
-                  <option key={m} value={m}>
-                    {m} (defesa {armor.defense[m]})
+        <div className="vitals">
+          {resource('Vida', 'vida', c.vida, c.vida_max, 'vida', 'vida_max')}
+          {resource('Postura', 'postura', c.postura, c.postura_max, 'postura', 'postura_max')}
+          {resource('Stamina', 'stamina', c.stamina, c.stamina_max, 'stamina', 'stamina_max')}
+          <div className="armor-card">
+            <Icon name="shield" size={26} />
+            <div className="armor-card__num">{resistencia}</div>
+            <div className="gauge__label">Resistência</div>
+            <small className="muted">{armorLabel(c.armor_kind, c.armor_material)}</small>
+            <div className="armor-card__sel">
+              <select
+                className="input input--sm"
+                aria-label="Armadura"
+                value={c.armor_kind ?? ''}
+                onChange={(e) => {
+                  const kind = armorByKey(e.target.value);
+                  patch({ armor_kind: kind?.key ?? null, armor_material: kind ? materialsOf(kind)[0] : null });
+                }}
+              >
+                <option value="">Sem armadura</option>
+                {ARMORS.map((a) => (
+                  <option key={a.key} value={a.key}>
+                    {a.name} +{a.bonus}
                   </option>
-                ))
-              ) : (
-                <option value="">—</option>
-              )}
-            </select>
-          </label>
+                ))}
+              </select>
+              <select className="input input--sm" aria-label="Material" disabled={!armor} value={c.armor_material ?? ''} onChange={(e) => patch({ armor_material: e.target.value || null })}>
+                {armor ? (
+                  materialsOf(armor).map((m) => (
+                    <option key={m} value={m}>
+                      {m} ({armor.defense[m]})
+                    </option>
+                  ))
+                ) : (
+                  <option value="">—</option>
+                )}
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ATRIBUTOS */}
-      <section className="card">
-        <div className="eyebrow">Atributos</div>
-        <p className="hint">
-          Teste de atributo = <code>Nd20kh1</code> (N = valor total, mínimo 1). O total soma o bônus da classe.
-        </p>
-        <div className="attr-grid">
+      <section className="panel">
+        <div className="panel__head">
+          <h2 className="panel__title">Atributos</h2>
+          <span className="hint">
+            Teste = <code>Nd20kh1</code> · total soma o bônus da classe
+          </span>
+        </div>
+        <div className="runes">
           {ATTRS.map((a) => {
             const total = attrTotal(c, cls, a.key);
             const bonus = classBonus(cls, a.key);
             return (
-              <div key={a.key} className="attr-card">
-                <div className="attr-card__name">{a.name}</div>
-                <NumInput label={a.name} value={c[a.key]} min={0} max={99} onChange={(n) => patch({ [a.key]: n } as Partial<Character>)} className="input--big" />
-                <div className="muted">
-                  total {total}
-                  {bonus !== 0 && ` (base ${c[a.key]} ${bonus > 0 ? '+' : '−'} ${Math.abs(bonus)} classe)`}
-                </div>
+              <div key={a.key} className="rune">
+                <div className="rune__name">{a.name}</div>
+                <div className="rune__total">{total}</div>
+                <small className="muted">
+                  {bonus !== 0 ? `base ${c[a.key]} ${bonus > 0 ? '+' : '−'} ${Math.abs(bonus)} classe` : a.hint}
+                </small>
+                <Stepper label={a.name} value={c[a.key]} max={99} onChange={(n) => patch({ [a.key]: n } as Partial<Character>)} />
                 <button className="btn btn--sm" onClick={() => void roll(testExpression(total), a.name)}>
-                  Rolar {testExpression(total)}
+                  <Icon name="dice" size={15} /> {testExpression(total)}
                 </button>
               </div>
             );
@@ -257,38 +263,33 @@ function Sheet({ source }: { source: Character }) {
       </section>
 
       {/* PERÍCIAS */}
-      <section className="card">
-        <div className="section-head">
-          <div>
-            <div className="eyebrow">Perícias</div>
-            <h2 className="section-title">Treinamento</h2>
-          </div>
+      <section className="panel">
+        <div className="panel__head">
+          <h2 className="panel__title">Perícias</h2>
           <span className={`chip ${used > budget ? 'chip--danger' : 'chip--ok'}`}>
             {used} de {budget} slots
           </span>
         </div>
-        <p className="hint">
-          Um slot por ponto de Mental (com bônus de classe) mais 3 da classe. A perícia soma o valor dela ao teste do atributo do grupo.
-        </p>
+        <p className="hint">Um slot por ponto de Mental (com bônus) mais 3 da classe. A perícia soma o valor dela ao teste do atributo do grupo.</p>
         <div className="skill-grid">
           {ATTRS.map((a) => (
             <div key={a.key} className="skill-group">
-              <h3 className="skill-group__title">
-                {a.key === 'fisico' ? 'Físicas' : a.key === 'mental' ? 'Mentais' : 'Espirituais'}
-              </h3>
+              <h3 className="skill-group__title">{a.key === 'fisico' ? 'Físicas' : a.key === 'mental' ? 'Mentais' : 'Espirituais'}</h3>
               {SKILLS.filter((s) => s.attr === a.key).map((s) => {
                 const value = c.skills?.[s.key] ?? 0;
-                const expr = skillExpression(attrTotal(c, cls, s.attr as AttrKey), value);
+                const expr = skillExpression(attrTotal(c, cls, s.attr), value);
                 const isClass = cls?.skills.includes(s.key) ?? false;
                 return (
-                  <div key={s.key} className={`skill-row ${isClass ? 'skill-row--class' : ''}`}>
-                    <span className="skill-row__name">
-                      {s.name} {isClass && <span className="badge">classe</span>}
-                    </span>
-                    <span className="skill-row__formula">{expr}</span>
-                    <NumInput label={s.name} value={value} min={0} max={99} className="input--tiny" onChange={(n) => setSkill(s.key, n)} />
-                    <button className="btn btn--sm btn--icon" aria-label={`Rolar ${s.name}`} title={`Rolar ${s.name}`} onClick={() => void roll(expr, s.name)}>
-                      🎲
+                  <div key={s.key} className={`skill ${isClass ? 'skill--class' : ''} ${value > 0 ? 'skill--on' : ''}`}>
+                    <div className="skill__name">
+                      <span>
+                        {s.name} {isClass && <span className="badge">classe</span>}
+                      </span>
+                      <small>{expr}</small>
+                    </div>
+                    <Stepper label={s.name} value={value} max={99} size="sm" onChange={(n) => setSkill(s.key, n)} />
+                    <button className="icon-btn icon-btn--accent" aria-label={`Rolar ${s.name}`} title={`Rolar ${s.name}`} onClick={() => void roll(expr, s.name)}>
+                      <Icon name="dice" size={16} />
                     </button>
                   </div>
                 );
@@ -300,39 +301,10 @@ function Sheet({ source }: { source: Character }) {
 
       <Inventory character={c} cls={cls} />
 
-      <section className="card">
-        <div className="eyebrow">Anotações</div>
+      <section className="panel">
+        <h2 className="panel__title">Anotações</h2>
         <textarea className="input textarea" rows={5} value={c.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="História, objetivos, lembretes…" />
       </section>
-    </div>
-  );
-}
-
-function Resource(props: {
-  name: string;
-  cls: string;
-  cur: number;
-  max: number;
-  onCur: (n: number) => void;
-  onMax: (n: number) => void;
-}) {
-  const { name, cls, cur, max, onCur, onMax } = props;
-  return (
-    <div className={`status-card status-card--${cls}`}>
-      <div className="eyebrow">{name}</div>
-      <div className="status-card__inputs">
-        <button className="btn btn--ghost btn--sm" onClick={() => onCur(Math.max(0, cur - 1))} aria-label={`Diminuir ${name}`}>
-          −
-        </button>
-        <NumInput label={`${name} atual`} value={cur} min={0} max={9999} className="input--big" onChange={onCur} />
-        <button className="btn btn--ghost btn--sm" onClick={() => onCur(Math.min(9999, cur + 1))} aria-label={`Aumentar ${name}`}>
-          +
-        </button>
-      </div>
-      <div className="row gap-sm muted">
-        <span>máx</span>
-        <NumInput label={`${name} máximo`} value={max} min={0} max={9999} className="input--tiny" onChange={onMax} />
-      </div>
     </div>
   );
 }

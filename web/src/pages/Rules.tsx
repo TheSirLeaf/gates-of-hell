@@ -3,14 +3,14 @@ import { ARMORS, attrName, materialsOf, SKILLS, WEAPONS, weaponDamageLabel } fro
 export function RulesPage() {
   return (
     <section>
-      <div className="section-head">
+      <div className="page-head">
         <div>
           <div className="eyebrow">Referência</div>
           <h1 className="page-title">Regras</h1>
         </div>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h2 className="section-title">Testes</h2>
         <ul>
           <li>
@@ -31,7 +31,7 @@ export function RulesPage() {
         </ul>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h2 className="section-title">Perícias</h2>
         <div className="skill-grid">
           {(['fisico', 'mental', 'espiritual'] as const).map((a) => (
@@ -47,7 +47,7 @@ export function RulesPage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h2 className="section-title">Armaduras</h2>
         <table className="table">
           <thead>
@@ -73,7 +73,7 @@ export function RulesPage() {
         </table>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h2 className="section-title">Armas</h2>
         <table className="table">
           <thead>
@@ -97,7 +97,7 @@ export function RulesPage() {
         </table>
       </div>
 
-      <div className="card">
+      <div className="panel">
         <h2 className="section-title">Rolador (sintaxe Rollem)</h2>
         <table className="table">
           <tbody>

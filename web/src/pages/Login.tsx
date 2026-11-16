@@ -25,8 +25,15 @@ export function Login() {
 
   return (
     <div className="auth">
-      <form className="auth__card card" onSubmit={submit}>
-        <div className="eyebrow">Gates of Hell</div>
+      <div className="auth__art" aria-hidden>
+        <div className="auth__sigil">☠</div>
+        <div className="auth__title">
+          Gates <i>of</i> Hell
+        </div>
+        <p>Fichas, forja e dados da sua mesa — num só lugar.</p>
+      </div>
+      <form className="auth__card" onSubmit={submit}>
+        <div className="eyebrow">Bem-vindo</div>
         <h1>{mode === 'in' ? 'Entrar na mesa' : 'Criar conta'}</h1>
 
         {mode === 'up' && (

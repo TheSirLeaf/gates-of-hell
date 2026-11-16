@@ -1,6 +1,8 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { Character, GameClass } from './types';
 import { useTable } from './useTable';
+import { PREVIEW } from '../dev/preview';
+import { MOCK_CHARACTERS, MOCK_CLASSES } from '../dev/mock';
 
 interface GameData {
   characters: Character[];
@@ -32,7 +34,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [chars.rows, cls.rows, chars.loading, cls.loading, chars.error, cls.error],
   );
 
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+  const shown: GameData = PREVIEW
+    ? {
+        characters: MOCK_CHARACTERS,
+        classes: MOCK_CLASSES,
+        loading: false,
+        error: null,
+        classById: (id) => MOCK_CLASSES.find((c) => c.id === id),
+      }
+    : value;
+
+  return <GameContext.Provider value={shown}>{children}</GameContext.Provider>;
 }
 
 export function useGame(): GameData {

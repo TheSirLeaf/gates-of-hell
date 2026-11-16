@@ -131,6 +131,30 @@ Qualquer pessoa que cria conta entra como **Jogador**. Para ser **Mestre**:
 Só quem tem acesso ao painel do Supabase consegue promover alguém — não existe código secreto
 vazando no site. Para ter um segundo mestre, repita o comando com o e-mail dele.
 
+## 8.1. Admin (quem mantém o sistema, sem ser o mestre)
+
+O papel **Admin** é para quem cuida do site mas **não joga como mestre** (ex.: você, desenvolvedor).
+Ele usa o site como jogador comum — **não vê** fichas dos outros, o bestiário nem as rolagens secretas —
+até ligar o **Modo suporte** (interruptor na barra lateral).
+
+1. Rode a migração [`supabase/migrations/003_admin_forge.sql`](../supabase/migrations/003_admin_forge.sql) no SQL Editor
+   (depois do 001 e do 002).
+2. Torne a sua conta admin (trocando o e-mail):
+
+   ```sql
+   update public.profiles set role = 'admin'
+   where id = (select id from auth.users where email = 'SEU-EMAIL@exemplo.com');
+   ```
+
+   Se você tinha virado `master` pelo passo 8, isso troca o seu papel para admin. Use então a aba **Admin** do site
+   para promover o mestre de verdade (ou rode o comando do passo 8 com o e-mail dele).
+3. Recarregue o site: aparecem o interruptor **Modo suporte** e a aba **Admin** (lista de pessoas e troca de papéis).
+
+**Transparência para o mestre:** ao ligar o modo suporte, o mestre recebe um aviso fixo no topo e notificações em tempo real
+a cada ficha, inventário, classe, monstro ou chat que você abrir/alterar. O histórico fica na aba **Atividade** do mestre.
+As alterações são registradas **pelo próprio banco** (não dá para burlar pelo site); as aberturas de telas são
+registradas pelo site.
+
 ## 9. Como usar (resumo para a mesa)
 
 - **Jogador:** cria conta → **Fichas → Nova ficha** → escolhe classe, distribui atributos e perícias,
@@ -141,7 +165,9 @@ vazando no site. Para ter um segundo mestre, repita o comando com o e-mail dele.
   - `/s d20` — rolagem **secreta** (só você e o mestre veem)
   - `[d20+5 ataque] [2d6+3 dano]` — várias de uma vez
   - Sem barra, é só conversa. Os botões 🎲 e **Dano** da ficha rolam por você.
-- **Mestre:** edita qualquer ficha, cria/edita classes, mantém o bestiário e pode **Limpar** o chat.
+- **Forja:** aba **Forja** — monte a receita (arma, raridade, metal, componentes), golpeie no tempo certo e o resultado
+  vai **automaticamente para o mestre** (cartão no chat + aba *Histórico*). Dá para guardar a peça no inventário.
+- **Mestre:** edita qualquer ficha, cria/edita classes, mantém o bestiário, acompanha as forjas e pode **Limpar** o chat.
 
 ## 10. Manutenção e limites do plano grátis
 
@@ -163,6 +189,7 @@ vazando no site. Para ter um segundo mestre, repita o comando com o e-mail dele.
 | Tela “Falta conectar o Supabase” | Variáveis `VITE_...` ausentes/erradas; corrija e faça novo deploy. |
 | “Não encontrei seu perfil” após login | O `001_schema.sql` não foi rodado (ou foi rodado depois da conta ser criada). Rode-o e crie a conta de novo, ou rode: `insert into public.profiles (id, display_name) select id, split_part(email,'@',1) from auth.users on conflict do nothing;` |
 | “Conta criada, mas o Supabase pediu confirmação” | Passo 4: desligue *Confirm email*. |
+| Forja/admin dão erro ao enviar | A migração `003_admin_forge.sql` não foi rodada. |
 | Classes não aparecem no seletor | O `002_seed_classes.sql` não foi rodado. |
 | Chat não atualiza sozinho | Rode de novo o final do `001_schema.sql` (seção *Tempo real*) ou confira em *Database → Publications → supabase_realtime*. |
 | Abas do Mestre não aparecem | O comando SQL do passo 8 não achou o e-mail; confira se é o mesmo da conta e recarregue a página. |

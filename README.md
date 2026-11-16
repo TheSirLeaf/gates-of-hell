@@ -19,8 +19,9 @@ web/                     o site (Vite + React + TS)
   src/rules/index.ts       regras fixas: perícias, armaduras, armas, fórmulas de teste
   src/lib/                 auth, sincronização em tempo real, rolagens, helpers de ficha
   src/components/          chat/rolador, inventário, layout
-  src/pages/               fichas, ficha, classes, bestiário, regras
-supabase/migrations/     SQL: schema + RLS (001) e classes iniciais (002)
+  src/forge/               Forja: regras (logic.ts, testado), minigame, efeitos de som/partículas
+  src/pages/               fichas, ficha, classes, bestiário, regras, atividade, admin
+supabase/migrations/     SQL: schema + RLS (001), classes iniciais (002), admin + forja (003)
 docs/SETUP.md            guia de setup passo a passo
 remake-resources/        regras originais fornecidas pelo mestre (fonte da verdade)
 src/, apps-script/       projeto antigo (Blazor + Google Sheets) — legado, só para referência
@@ -46,6 +47,20 @@ npm run build
 - **Resistência** = defesa da armadura (tipo + material) conforme a tabela de armaduras.
 - **Armas**: dano = dado da arma + atributo (Físico ou Mental), com requisito mínimo.
 - Classes e habilidades (editáveis pelo mestre) vêm de `CLASSES.md`.
+
+## Papéis
+
+| Papel | O que vê |
+| --- | --- |
+| Jogador | só as próprias fichas; chat; forja; regras |
+| Mestre | todas as fichas, classes, bestiário, rolagens secretas, histórico da forja, atividade do admin |
+| Admin | como jogador, **até ligar o Modo suporte** (aí tem acesso de mestre e o mestre é avisado em tempo real) |
+
+## Forja
+
+Ferramenta de fabricação baseada em `forja_prototipo-2.html`, com minigame de precisão (roda, ponteiro, golpe antecipado
+como falha crítica), impacto visual/sonoro e resultado enviado sempre ao mestre. Regras ainda provisórias estão
+marcadas no código (`web/src/forge/logic.ts`).
 
 ## Segurança
 

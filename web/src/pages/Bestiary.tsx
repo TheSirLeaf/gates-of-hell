@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NumInput } from '../components/NumInput';
+import { useAuditView } from '../lib/activity';
 import { useAuth } from '../lib/auth';
 import { postRoll } from '../lib/roll';
 import { supabase } from '../lib/supabase';
@@ -25,6 +26,7 @@ const EMPTY: Draft = {
 
 export function Bestiary() {
   const { profile } = useAuth();
+  useAuditView('bestiary', 'bestiary', 'Bestiário');
   const { rows, loading } = useTable<Monster>('monsters', { sort: (a, b) => a.name.localeCompare(b.name, 'pt-BR') });
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function Bestiary() {
 
   return (
     <section>
-      <div className="section-head">
+      <div className="page-head">
         <div>
           <div className="eyebrow">Mestre</div>
           <h1 className="page-title">Bestiário</h1>
@@ -73,7 +75,7 @@ export function Bestiary() {
 
       <div className="grid-cards">
         {rows.map((m) => (
-          <article key={m.id} className="card">
+          <article key={m.id} className="panel">
             <h3 className="section-title">{m.name}</h3>
             <div className="status-mini">
               <label>Vida <NumInput label="Vida" value={m.vida} className="input--tiny" min={0} max={9999} onChange={(n) => void patch(m, { vida: n })} /> / {m.vida_max}</label>
@@ -121,7 +123,7 @@ function MonsterForm({ initial, onSave, onCancel }: { initial: Draft; onSave: (d
   );
   return (
     <form
-      className="card form"
+      className="panel form"
       onSubmit={(e) => {
         e.preventDefault();
         if (d.name.trim()) onSave({ ...d, name: d.name.trim() });

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
+import { PREVIEW } from '../dev/preview';
+import { MOCK_MESSAGES } from '../dev/mock';
 
 type Row = { id: string | number };
 
@@ -36,6 +38,11 @@ export function useTable<T extends Row>(table: string, opts: Options<T> = {}) {
   useEffect(() => {
     if (!enabled) {
       setRows([]);
+      setLoading(false);
+      return;
+    }
+    if (PREVIEW) {
+      setRows((table === 'messages' ? MOCK_MESSAGES : []) as unknown as T[]);
       setLoading(false);
       return;
     }

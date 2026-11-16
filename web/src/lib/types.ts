@@ -1,11 +1,12 @@
 import type { RollResult } from './dice';
 
-export type Role = 'player' | 'master';
+export type Role = 'player' | 'master' | 'admin';
 
 export interface Profile {
   id: string;
   display_name: string;
   role: Role;
+  admin_mode: boolean;
 }
 
 export interface Ability {
@@ -85,9 +86,63 @@ export interface Message {
   author_id: string;
   author_name: string;
   character_id: string | null;
-  kind: 'chat' | 'roll';
+  kind: 'chat' | 'roll' | 'forge';
   body: string;
   rolls: RollResult[] | null;
+  payload: ForgePayload | null;
   secret: boolean;
+  created_at: string;
+}
+
+export type ForgeOutcome = 'Perfeito' | 'Melhor' | 'Bom' | 'Falha' | 'Falha crítica';
+
+export interface ForgePayload {
+  weapon: string;
+  rarity: string;
+  metal: string;
+  tests: number;
+  perfects: number;
+  betters: number;
+  goods: number;
+  misses: number;
+  criticals: number;
+  damageBonus: number;
+  durability: number;
+  divineOk: boolean | null;
+  timeline: ForgeOutcome[];
+}
+
+export interface ForgeResultRow {
+  id: string;
+  author_id: string;
+  author_name: string;
+  character_id: string | null;
+  character_name: string;
+  weapon: string;
+  rarity: string;
+  metal: string;
+  skill_level: number;
+  components: number;
+  tests: number;
+  perfects: number;
+  betters: number;
+  goods: number;
+  misses: number;
+  criticals: number;
+  damage_bonus: number;
+  durability: number;
+  divine_ok: boolean | null;
+  timeline: ForgeOutcome[];
+  created_at: string;
+}
+
+export interface AdminActivity {
+  id: number;
+  admin_id: string;
+  admin_name: string;
+  action: 'support_on' | 'support_off' | 'view' | 'create' | 'edit' | 'delete' | 'role';
+  target_type: string;
+  target_id: string;
+  target_label: string;
   created_at: string;
 }

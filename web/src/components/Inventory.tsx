@@ -43,12 +43,9 @@ export function Inventory({ character, cls }: { character: Character; cls: GameC
   }
 
   return (
-    <section className="card">
-      <div className="section-head">
-        <div>
-          <div className="eyebrow">Inventário</div>
-          <h2 className="section-title">Armas e itens</h2>
-        </div>
+    <section className="panel">
+      <div className="panel__head">
+        <h2 className="panel__title">Inventário</h2>
       </div>
 
       {message && <p className="text-danger">{message}</p>}

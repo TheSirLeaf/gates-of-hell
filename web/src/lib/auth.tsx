@@ -1,13 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { PREVIEW, PREVIEW_ROLE } from '../dev/preview';
+import { MOCK_PROFILE } from '../dev/mock';
 import type { Profile } from './types';
 
 interface AuthState {
   loading: boolean;
   session: Session | null;
   profile: Profile | null;
+  /** Mestre de verdade. */
   isMaster: boolean;
+  isAdmin: boolean;
+  adminMode: boolean;
+  /** Tem permissão de mestre agora: mestre, ou admin com o modo suporte ligado. */
+  masterAccess: boolean;
+  setSupportMode: (on: boolean) => Promise<string | null>;
   signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (email: string, password: string, displayName: string) => Promise<string | null>;
   signOut: () => Promise<void>;
@@ -17,14 +25,14 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(PREVIEW ? ({ user: { id: 'me' } } as Session) : null);
+  const [profile, setProfile] = useState<Profile | null>(PREVIEW ? MOCK_PROFILE(PREVIEW_ROLE) : null);
+  const [loading, setLoading] = useState(!PREVIEW);
 
   const loadProfile = useCallback(async (userId: string) => {
     // O perfil é criado por trigger no cadastro; tenta algumas vezes por causa da latência.
     for (let i = 0; i < 5; i++) {
-      const { data } = await supabase.from('profiles').select('id, display_name, role').eq('id', userId).maybeSingle();
+      const { data } = await supabase.from('profiles').select('id, display_name, role, admin_mode').eq('id', userId).maybeSingle();
       if (data) {
         setProfile(data as Profile);
         return;
@@ -35,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (PREVIEW) return;
     let active = true;
     supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
@@ -61,6 +70,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       isMaster: profile?.role === 'master',
+      isAdmin: profile?.role === 'admin',
+      adminMode: profile?.role === 'admin' && profile.admin_mode,
+      masterAccess: profile?.role === 'master' || (profile?.role === 'admin' && profile.admin_mode),
+      setSupportMode: async (on) => {
+        if (PREVIEW) {
+          setProfile((p) => (p ? { ...p, admin_mode: on } : p));
+          return null;
+        }
+        const { error } = await supabase.rpc('set_admin_mode', { p_on: on });
+        if (error) return error.message;
+        if (session) await loadProfile(session.user.id);
+        return null;
+      },
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return error ? translateAuthError(error.message) : null;
