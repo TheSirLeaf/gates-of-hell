@@ -58,6 +58,11 @@ Para conferir: **Table Editor** deve listar `profiles`, `classes`, `characters`,
 
 > Os jogadores podem usar qualquer e-mail (ele só serve de login). Não é enviado nada para ele.
 
+**Se preferir manter "Confirm email" ligado:** em **Authentication → URL Configuration**, coloque o endereço do site
+(ex.: `https://gates-of-hell.SEU-USUARIO.workers.dev`) em **Site URL** e também em **Redirect URLs**. Sem isso, o link do e-mail
+abre `localhost` e a confirmação "não funciona". O site já mostra a mensagem de confirmação e tem o botão
+**Reenviar e-mail**. Atenção: o e-mail grátis do Supabase tem limite de poucos envios por hora.
+
 ## 5. Pegar as chaves do Supabase
 
 1. **Project Settings** (engrenagem) → **API** (ou *Data API / API Keys*).
@@ -148,7 +153,13 @@ até ligar o **Modo suporte** (interruptor na barra lateral).
 
    Se você tinha virado `master` pelo passo 8, isso troca o seu papel para admin. Use então a aba **Admin** do site
    para promover o mestre de verdade (ou rode o comando do passo 8 com o e-mail dele).
-3. Recarregue o site: aparecem o interruptor **Modo suporte** e a aba **Admin** (lista de pessoas e troca de papéis).
+3. Rode também [`supabase/migrations/004_admin_accounts.sql`](../supabase/migrations/004_admin_accounts.sql) (gestão de contas).
+4. Recarregue o site: aparecem o interruptor **Modo suporte** e a aba **Admin**.
+
+**Aba Admin — gestão de contas:** lista todas as pessoas (e-mail, papel, fichas, último acesso) com busca e filtros.
+Ao abrir uma conta você pode: trocar o papel (jogador/mestre), renomear, **definir uma senha temporária** (para quem esqueceu),
+**bloquear/desbloquear** o login e **excluir** a conta (apaga fichas, inventário, mensagens e forjas; exige digitar o nome).
+Contas de admin não podem ser alteradas por aqui. Cada ação fica no registro de atividade que o mestre vê.
 
 **Transparência para o mestre:** ao ligar o modo suporte, o mestre recebe um aviso fixo no topo e notificações em tempo real
 a cada ficha, inventário, classe, monstro ou chat que você abrir/alterar. O histórico fica na aba **Atividade** do mestre.
@@ -169,6 +180,18 @@ registradas pelo site.
   vai **automaticamente para o mestre** (cartão no chat + aba *Histórico*). Dá para guardar a peça no inventário.
 - **Mestre:** edita qualquer ficha, cria/edita classes, mantém o bestiário, acompanha as forjas e pode **Limpar** o chat.
 
+## 9.1. Usar no celular (instalar como app)
+
+O site é um **PWA**: instala no celular como um app de verdade (ícone próprio, tela cheia, sem barra do navegador).
+Não precisa de loja de apps.
+
+- **Android (Chrome):** abra o site → menu **Mais** (barra inferior) → **Instalar como app**.
+  (Ou menu do Chrome ⋮ → *Instalar app*.)
+- **iPhone (Safari):** abra o site → botão **Compartilhar** → **Adicionar à Tela de Início**.
+
+Dicas: a **Forja** vira tela cheia ao jogar (toque em qualquer ponto para golpear) e, na ficha, a faixa fixa no topo
+ajusta Vida/Postura/Stamina sem rolar a página. É preciso internet para usar (os dados ficam no Supabase).
+
 ## 10. Manutenção e limites do plano grátis
 
 - **Pausa por inatividade:** projetos grátis do Supabase **pausam após ~7 dias sem uso**. Se o site parar de
@@ -188,8 +211,9 @@ registradas pelo site.
 | --- | --- |
 | Tela “Falta conectar o Supabase” | Variáveis `VITE_...` ausentes/erradas; corrija e faça novo deploy. |
 | “Não encontrei seu perfil” após login | O `001_schema.sql` não foi rodado (ou foi rodado depois da conta ser criada). Rode-o e crie a conta de novo, ou rode: `insert into public.profiles (id, display_name) select id, split_part(email,'@',1) from auth.users on conflict do nothing;` |
-| “Conta criada, mas o Supabase pediu confirmação” | Passo 4: desligue *Confirm email*. |
+| “Seu e-mail ainda não foi confirmado” / link do e-mail abre localhost | Passo 4: desligue *Confirm email*, ou configure *Site URL* e *Redirect URLs* e use **Reenviar e-mail**. |
 | Forja/admin dão erro ao enviar | A migração `003_admin_forge.sql` não foi rodada. |
+| Aba Admin diz que a migração 004 falta | Rode `004_admin_accounts.sql` no SQL Editor. |
 | Classes não aparecem no seletor | O `002_seed_classes.sql` não foi rodado. |
 | Chat não atualiza sozinho | Rode de novo o final do `001_schema.sql` (seção *Tempo real*) ou confira em *Database → Publications → supabase_realtime*. |
 | Abas do Mestre não aparecem | O comando SQL do passo 8 não achou o e-mail; confira se é o mesmo da conta e recarregue a página. |

@@ -4,7 +4,8 @@ import { useAuth } from '../lib/auth';
 import { GameProvider, useGame } from '../lib/game';
 import { AdminWatch } from './AdminWatch';
 import { ChatPanel } from './ChatPanel';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
+import { MoreMenu, type NavItem } from './MoreMenu';
 import { SupportToggle } from './SupportToggle';
 
 export function Layout() {
@@ -15,16 +16,11 @@ export function Layout() {
   );
 }
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: IconName;
-}
-
 function Shell() {
   const { profile, isMaster, isAdmin, adminMode, masterAccess, signOut, setSupportMode } = useAuth();
   const { characters, error } = useGame();
   const [chatOpen, setChatOpen] = useState(() => window.innerWidth >= 1100);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const items: NavItem[] = [
     { to: '/fichas', label: 'Fichas', icon: 'sheet' },
@@ -36,6 +32,11 @@ function Shell() {
   }
   if (isMaster) items.push({ to: '/atividade', label: 'Atividade', icon: 'activity' });
   if (isAdmin) items.push({ to: '/admin', label: 'Admin', icon: 'users' });
+
+  // No celular: 4 itens na barra (os mais usados) e o resto vai para "Mais".
+  const priority = ['/fichas', '/forja', '/bestiario', '/regras'];
+  const primary = priority.map((to) => items.find((i) => i.to === to)).filter((i): i is NavItem => Boolean(i));
+  const overflow = items.filter((i) => !primary.includes(i));
 
   const role = isAdmin ? 'Admin' : isMaster ? 'Mestre' : 'Jogador';
   const initial = (profile?.display_name ?? '?').charAt(0).toUpperCase();
@@ -84,6 +85,18 @@ function Shell() {
         </div>
       </aside>
 
+      <header className="mobilebar">
+        <div className="brand">
+          <span className="brand__name">
+            Gates <i>of</i> Hell
+          </span>
+        </div>
+        {adminMode && <span className="chip chip--gold">suporte</span>}
+        <button className="icon-btn" onClick={() => setChatOpen((v) => !v)} aria-label="Abrir chat">
+          <Icon name="chat" size={20} />
+        </button>
+      </header>
+
       <div className="main">
         {adminMode && (
           <div className="support-banner" role="status">
@@ -112,13 +125,18 @@ function Shell() {
       </button>
 
       <nav className="tabbar" aria-label="Navegação">
-        {items.map((it) => (
+        {primary.map((it) => (
           <NavLink key={it.to} to={it.to} className={({ isActive }) => `tab ${isActive ? 'is-active' : ''}`}>
-            <Icon name={it.icon} size={20} />
+            <Icon name={it.icon} size={22} />
             <span>{it.label}</span>
           </NavLink>
         ))}
+        <button className={`tab ${moreOpen ? 'is-active' : ''}`} onClick={() => setMoreOpen(true)}>
+          <Icon name="menu" size={22} />
+          <span>Mais</span>
+        </button>
       </nav>
+      {moreOpen && <MoreMenu items={overflow} onClose={() => setMoreOpen(false)} />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { ForgePayload } from '../lib/types';
-import { itemName, outcomeTone, RARITIES } from './logic';
+import { gradeOf, itemName, outcomeTone, RARITIES } from './logic';
 
 export const rarityKey = (name: string): string => RARITIES.find((r) => r.name === name)?.key ?? 'comum';
 
@@ -20,8 +20,8 @@ export function ForgeCard({ p, who }: { p: ForgePayload; who?: string }) {
   return (
     <div className={`forge-card rarity-${rk}`}>
       <div className="forge-card__head">
-        <span className="forge-card__icon" aria-hidden>
-          ⚒
+        <span className={`grade grade--sm grade--${gradeOf(p).grade}`} aria-label={`Nota ${gradeOf(p).grade}`}>
+          <span>{gradeOf(p).grade}</span>
         </span>
         <div>
           <div className="forge-card__title">{label}</div>

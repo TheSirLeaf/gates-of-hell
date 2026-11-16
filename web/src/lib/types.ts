@@ -140,7 +140,7 @@ export interface AdminActivity {
   id: number;
   admin_id: string;
   admin_name: string;
-  action: 'support_on' | 'support_off' | 'view' | 'create' | 'edit' | 'delete' | 'role';
+  action: 'support_on' | 'support_off' | 'view' | 'create' | 'edit' | 'delete' | 'role' | 'account';
   target_type: string;
   target_id: string;
   target_label: string;

@@ -25,6 +25,9 @@ const PATHS = {
   trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13',
   back: 'M15 5l-7 7 7 7',
   menu: 'M4 7h16 M4 12h16 M4 17h16',
+  send: 'M4 12l16-8-6 17-3-7z M11 14l9-10',
+  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M20 20l-4-4',
+  star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

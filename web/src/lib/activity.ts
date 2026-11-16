@@ -29,6 +29,8 @@ export function describeActivity(a: AdminActivity): string {
       return 'desligou o modo suporte';
     case 'role':
       return `mudou um papel: ${a.target_label}`;
+    case 'account':
+      return `gerenciou uma conta: ${a.target_label}`;
     default: {
       const obj = OBJECT[a.target_type]?.(a.target_label) ?? a.target_label;
       return `${VERB[a.action] ?? a.action} ${obj}`;

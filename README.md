@@ -21,7 +21,7 @@ web/                     o site (Vite + React + TS)
   src/components/          chat/rolador, inventário, layout
   src/forge/               Forja: regras (logic.ts, testado), minigame, efeitos de som/partículas
   src/pages/               fichas, ficha, classes, bestiário, regras, atividade, admin
-supabase/migrations/     SQL: schema + RLS (001), classes iniciais (002), admin + forja (003)
+supabase/migrations/     SQL: schema + RLS (001), classes iniciais (002), admin + forja (003), gestão de contas (004)
 docs/SETUP.md            guia de setup passo a passo
 remake-resources/        regras originais fornecidas pelo mestre (fonte da verdade)
 src/, apps-script/       projeto antigo (Blazor + Google Sheets) — legado, só para referência
@@ -47,6 +47,11 @@ npm run build
 - **Resistência** = defesa da armadura (tipo + material) conforme a tabela de armaduras.
 - **Armas**: dano = dado da arma + atributo (Físico ou Mental), com requisito mínimo.
 - Classes e habilidades (editáveis pelo mestre) vêm de `CLASSES.md`.
+
+## Celular
+
+O site é um PWA (manifest + service worker mínimo em `web/public/`): instala na tela inicial, tem barra inferior com
+menu "Mais", chat em tela cheia, faixa fixa de vitais na ficha e Forja em modo imersivo. Não há app nativo separado.
 
 ## Papéis
 

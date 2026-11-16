@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ForgeOutcome } from '../lib/types';
-import { angularDistance, classify, METALS, RARITIES, summarize, testParams, totalTests, type ForgeConfig } from './logic';
+import { angularDistance, classify, gradeOf, METALS, RARITIES, summarize, testParams, totalTests, WEAPON_GROUPS, WEAPON_TYPES, type ForgeConfig } from './logic';
 
 const cfg = (rarity: string, metal: string, components = 0): ForgeConfig => ({
   weapon: 'Espada',
@@ -64,5 +64,16 @@ describe('forja', () => {
     expect(summarize(c, all).divineOk).toBe(true);
     expect(summarize(c, [...all.slice(1), 'Melhor']).divineOk).toBe(false);
     expect(summarize(c, all.slice(1)).divineOk).toBe(false);
+  });
+
+  it('os grupos de armas cobrem todas as armas, sem repetir', () => {
+    const all = WEAPON_GROUPS.flatMap((g) => g.items);
+    expect([...all].sort()).toEqual([...WEAPON_TYPES].sort());
+  });
+
+  it('nota: tudo perfeito é S; muitas falhas críticas derrubam', () => {
+    expect(gradeOf({ tests: 10, perfects: 10, betters: 0, goods: 0, criticals: 0 }).grade).toBe('S');
+    expect(gradeOf({ tests: 10, perfects: 0, betters: 0, goods: 0, criticals: 10 }).grade).toBe('D');
+    expect(gradeOf({ tests: 10, perfects: 5, betters: 3, goods: 2, criticals: 0 }).grade).toBe('A');
   });
 });

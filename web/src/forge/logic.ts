@@ -130,3 +130,24 @@ export const outcomeTone = (o: ForgeOutcome): 'perfect' | 'better' | 'good' | 'm
 export function itemName(s: Pick<ForgePayload, 'weapon' | 'rarity' | 'metal'>): string {
   return `${s.weapon} ${s.rarity.toLowerCase()} de ${s.metal}`;
 }
+
+/** Armas agrupadas para a seleção visual (cobre exatamente WEAPON_TYPES). */
+export const WEAPON_GROUPS: { name: string; items: string[] }[] = [
+  { name: 'Lâminas', items: ['Adaga', 'Espada', 'Espada longa', 'Florete', 'Katana', 'Cimitarra', 'Foice', 'Machado'] },
+  { name: 'Impacto', items: ['Martelo', 'Clava', 'Maça', 'Bastão', 'Nunchaku', 'Estrela da Manhã', 'Porrete dentado', 'Soqueira', 'Picareta'] },
+  { name: 'Hastes e correntes', items: ['Lança', 'Tridente', 'Kusarigama', 'Correntes', 'Chicote', 'Boleadeira'] },
+  { name: 'Distância', items: ['Arco curto', 'Arco longo', 'Besta', 'Zarabatana', 'Pistola'] },
+  { name: 'Arcanas', items: ['Cajado', 'Varinha', 'Orbe elemental', 'Grimório'] },
+  { name: 'Outras', items: ['Garras', 'Sai'] },
+];
+
+export type Grade = 'S' | 'A' | 'B' | 'C' | 'D';
+
+/** Nota da peça: perfeitos pesam mais; falhas críticas descontam. */
+export function gradeOf(s: Pick<ForgePayload, 'tests' | 'perfects' | 'betters' | 'goods' | 'criticals'>): { grade: Grade; score: number } {
+  if (s.tests <= 0) return { grade: 'D', score: 0 };
+  const raw = (s.perfects + s.betters * 0.6 + s.goods * 0.3) / s.tests - s.criticals * 0.15 / Math.max(1, s.tests / 4);
+  const score = Math.max(0, Math.min(1, raw));
+  const grade: Grade = score >= 0.9 ? 'S' : score >= 0.7 ? 'A' : score >= 0.5 ? 'B' : score >= 0.3 ? 'C' : 'D';
+  return { grade, score };
+}

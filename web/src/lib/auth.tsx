@@ -5,6 +5,12 @@ import { PREVIEW, PREVIEW_ROLE } from '../dev/preview';
 import { MOCK_PROFILE } from '../dev/mock';
 import type { Profile } from './types';
 
+/** Resultado de entrar/cadastrar. `needsConfirmation`: a conta existe, mas o e-mail ainda não foi confirmado. */
+export interface AuthResult {
+  error: string | null;
+  needsConfirmation?: boolean;
+}
+
 interface AuthState {
   loading: boolean;
   session: Session | null;
@@ -16,8 +22,9 @@ interface AuthState {
   /** Tem permissão de mestre agora: mestre, ou admin com o modo suporte ligado. */
   masterAccess: boolean;
   setSupportMode: (on: boolean) => Promise<string | null>;
-  signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string, displayName: string) => Promise<string | null>;
+  signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, password: string, displayName: string) => Promise<AuthResult>;
+  resendConfirmation: (email: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -85,19 +92,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return error ? translateAuthError(error.message) : null;
+        if (!error) return { error: null };
+        if (isUnconfirmed(error.message)) {
+          return { error: 'Seu e-mail ainda não foi confirmado. Abra o link que enviamos ou peça um novo.', needsConfirmation: true };
+        }
+        return { error: translateAuthError(error.message) };
       },
       signUp: async (email, password, displayName) => {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: displayName } },
+          options: {
+            data: { display_name: displayName },
+            // o link do e-mail volta para ESTE site (senão o Supabase usa o "Site URL" padrão, que costuma ser localhost)
+            emailRedirectTo: window.location.origin,
+          },
         });
-        if (error) return translateAuthError(error.message);
-        if (!data.session) {
-          return 'Conta criada, mas o Supabase pediu confirmação por e-mail. Desative "Confirm email" (veja o guia) ou confirme pelo link enviado.';
+        if (error) return { error: translateAuthError(error.message) };
+        // Com confirmação ligada, e-mail já cadastrado NÃO dá erro: volta um usuário sem identidades.
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+          return { error: 'Este e-mail já tem conta. Entre com ele (ou confirme o e-mail, se ainda não confirmou).', needsConfirmation: true };
         }
-        return null;
+        if (!data.session) return { error: null, needsConfirmation: true };
+        return { error: null };
+      },
+      resendConfirmation: async (email) => {
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: { emailRedirectTo: window.location.origin },
+        });
+        return error ? translateAuthError(error.message) : null;
       },
       signOut: async () => {
         await supabase.auth.signOut();
@@ -118,8 +143,18 @@ export function useAuth(): AuthState {
   return ctx;
 }
 
+const isUnconfirmed = (message: string): boolean => {
+  const m = message.toLowerCase();
+  return m.includes('not confirmed') || m.includes('email_not_confirmed');
+};
+
 function translateAuthError(message: string): string {
   const m = message.toLowerCase();
+  if (m.includes('signups not allowed') || m.includes('signups are disabled') || m.includes('signup is disabled')) {
+    return 'O cadastro está desligado no Supabase. Ligue "Allow new users to sign up" (veja o guia).';
+  }
+  if (m.includes('expired') || m.includes('otp')) return 'O link expirou ou já foi usado. Peça um novo e-mail de confirmação.';
+  if (m.includes('security purposes') || m.includes('after ')) return 'Espere alguns segundos antes de pedir outro e-mail.';
   if (m.includes('invalid login')) return 'E-mail ou senha incorretos.';
   if (m.includes('already registered')) return 'Este e-mail já tem conta. Entre com ele.';
   if (m.includes('password should be')) return 'A senha precisa ter pelo menos 6 caracteres.';

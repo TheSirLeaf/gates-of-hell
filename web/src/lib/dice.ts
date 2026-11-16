@@ -15,6 +15,8 @@ export interface DieFace {
   dropped: boolean;
   crit: boolean;
   fate: boolean;
+  /** Lados do dado (ausente em rolagens antigas e em dF). */
+  sides?: number;
 }
 
 export interface RollResult {
@@ -401,7 +403,7 @@ class Parser {
 
   private rollDie(fate: boolean, sides: number): DieFace {
     if (fate) return { value: this.rng(3) - 1, dropped: false, crit: false, fate: true };
-    return { value: this.rng(sides) + 1, dropped: false, crit: false, fate: false };
+    return { value: this.rng(sides) + 1, dropped: false, crit: false, fate: false, sides };
   }
 
   private skipSpaces(): void {

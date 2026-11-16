@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { useAuth } from '../lib/auth';
 import { useGame } from '../lib/game';
 import type { ForgeOutcome, ForgeResultRow } from '../lib/types';
 import { useTable } from '../lib/useTable';
-import { Icon } from '../components/Icon';
 import { Dial } from './Dial';
 import { ForgeCard, rarityKey, Timeline } from './ForgeCard';
 import { ParticleField, playCue, playFinish, playStrike, vibrate } from './fx';
@@ -11,6 +11,7 @@ import {
   angularDistance,
   classify,
   clampComponents,
+  gradeOf,
   itemName,
   MAX_COMPONENTS,
   METALS,
@@ -20,10 +21,11 @@ import {
   summarize,
   testParams,
   totalTests,
-  WEAPON_TYPES,
+  WEAPON_GROUPS,
   type ForgeConfig,
   type ForgeSummary,
 } from './logic';
+import { Scene } from './Scene';
 import { saveToInventory, submitForge } from './submit';
 
 type Phase = 'setup' | 'play' | 'done';
@@ -39,14 +41,14 @@ const POPUP: Record<ForgeOutcome, string> = {
 };
 
 const FLASH: Record<Tone, string> = {
-  perfect: 'radial-gradient(circle at 50% 55%, rgba(255,236,170,.9), rgba(255,170,60,.35) 45%, transparent 70%)',
-  better: 'radial-gradient(circle at 50% 55%, rgba(255,205,140,.7), rgba(255,140,50,.25) 45%, transparent 70%)',
-  good: 'radial-gradient(circle at 50% 55%, rgba(255,170,100,.45), transparent 65%)',
-  miss: 'radial-gradient(circle at 50% 55%, rgba(120,110,130,.4), transparent 65%)',
-  crit: 'radial-gradient(circle at 50% 55%, rgba(255,60,50,.7), rgba(120,0,0,.35) 50%, transparent 75%)',
+  perfect: 'radial-gradient(circle at 50% 50%, rgba(255,236,170,.9), rgba(255,170,60,.35) 45%, transparent 72%)',
+  better: 'radial-gradient(circle at 50% 50%, rgba(255,205,140,.7), rgba(255,140,50,.25) 45%, transparent 72%)',
+  good: 'radial-gradient(circle at 50% 50%, rgba(255,170,100,.45), transparent 65%)',
+  miss: 'radial-gradient(circle at 50% 50%, rgba(120,110,130,.4), transparent 65%)',
+  crit: 'radial-gradient(circle at 50% 50%, rgba(255,60,50,.75), rgba(120,0,0,.35) 50%, transparent 78%)',
 };
 
-const SHAKE: Record<Tone, number> = { perfect: 11, better: 6, good: 4, miss: 3, crit: 13 };
+const SHAKE: Record<Tone, number> = { perfect: 11, better: 6, good: 4, miss: 3, crit: 14 };
 const HEAT: Record<Tone, number> = { perfect: 0.12, better: 0.08, good: 0.04, miss: -0.04, crit: -0.2 };
 
 const reducedMotion = (): boolean => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -80,7 +82,7 @@ function Workshop() {
   const mine = useMemo(() => characters.filter((c) => c.owner_id === profile?.id), [characters, profile]);
 
   // ---- configuração ----
-  const [weapon, setWeapon] = useState<string>(WEAPON_TYPES[1]);
+  const [weapon, setWeapon] = useState<string>('Espada');
   const [rarityKeyV, setRarityKey] = useState('comum');
   const [metalKey, setMetalKey] = useState('ferro');
   const [components, setComponents] = useState(0);
@@ -145,7 +147,7 @@ function Workshop() {
   eng.current.muted = muted;
 
   const stageRef = useRef<HTMLDivElement>(null);
-  const ingotRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<SVGGElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const needleRef = useRef<SVGGElement>(null);
@@ -160,8 +162,11 @@ function Workshop() {
     const onResize = () => field.resize();
     field.resize();
     window.addEventListener('resize', onResize);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(onResize) : null;
+    if (stageRef.current) ro?.observe(stageRef.current);
     return () => {
       window.removeEventListener('resize', onResize);
+      ro?.disconnect();
       field.destroy();
       fieldRef.current = null;
     };
@@ -255,11 +260,12 @@ function Workshop() {
     setLastTone(t);
 
     const stage = stageRef.current;
-    const ingot = ingotRef.current;
-    if (stage && ingot && fieldRef.current) {
+    const anchor = anchorRef.current;
+    if (stage && anchor && fieldRef.current) {
       const sr = stage.getBoundingClientRect();
-      const ir = ingot.getBoundingClientRect();
-      fieldRef.current.burst(ir.left - sr.left + ir.width / 2, ir.top - sr.top + ir.height / 2, t, reducedMotion());
+      const ar = anchor.getBoundingClientRect();
+      // o martelo acerta o centro da peça
+      fieldRef.current.burst(ar.left - sr.left + ar.width * 0.4, ar.top - sr.top + ar.height / 2, t, reducedMotion());
     }
     if (!reducedMotion()) {
       const amp = SHAKE[t];
@@ -372,7 +378,8 @@ function Workshop() {
     const s = summarize(e.config, e.results);
     setSummary(s);
     setPhase('done');
-    playFinish(s.perfects >= s.tests / 2 && s.criticals === 0, e.muted);
+    const g = gradeOf(s).grade;
+    playFinish(g === 'S' || g === 'A', e.muted);
     void send(s);
   };
 
@@ -382,128 +389,137 @@ function Workshop() {
     localStorage.setItem('forge-muted', m ? '1' : '0');
   };
 
+  // Enquanto joga: trava a rolagem da página e esconde barras (no celular, a tela vira só o minigame).
+  useEffect(() => {
+    if (phase !== 'play') return;
+    document.documentElement.classList.add('immersive');
+    stageRef.current?.scrollIntoView({ block: 'start' });
+    return () => document.documentElement.classList.remove('immersive');
+  }, [phase]);
+
   const rk = config.rarity.key;
   const live = sub === 'live';
-  const heatStyle = { ['--heat' as string]: heat } as React.CSSProperties;
+  const progress = phase === 'done' ? 1 : phase === 'play' ? results.length / Math.max(1, total) : 0;
+  const base = config.metal.durability;
 
   return (
     <div className={`forge forge--${phase}`}>
       {/* ---------- Preparação ---------- */}
-      <div className={`panel forge__setup ${phase === 'play' ? 'is-locked' : ''}`}>
-        <h2 className="panel__title">Preparar fabricação</h2>
-        <p className="muted">Monte a receita antes de acender a fornalha.</p>
-
-        <div className="fgrid">
-          <label className="field">
-            <span>Tipo de arma</span>
-            <select className="input" value={weapon} onChange={(e) => setWeapon(e.target.value)}>
-              {WEAPON_TYPES.map((w) => (
-                <option key={w}>{w}</option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Raridade</span>
-            <select className="input" value={rarityKeyV} onChange={(e) => setRarityKey(e.target.value)}>
-              {RARITIES.map((r) => (
-                <option key={r.key} value={r.key}>
-                  {r.name} · {r.tests}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Metal</span>
-            <select className="input" value={metalKey} onChange={(e) => setMetalKey(e.target.value)}>
-              {METALS.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.name} · dificuldade +{m.difficulty}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Perícia Ferreiro</span>
-            <select className="input" value={smithLevel} onChange={(e) => setSmithLevel(+e.target.value)}>
-              {SMITH_LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  Nível {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Componentes (+1 dificuldade cada)</span>
-            <div className="stepper">
-              <button type="button" onClick={() => setComponents((c) => clampComponents(c - 1))} aria-label="Menos">
-                −
-              </button>
-              <output>{components}</output>
-              <button type="button" onClick={() => setComponents((c) => clampComponents(c + 1))} aria-label="Mais">
-                +
-              </button>
-              <small className="muted">máx. {MAX_COMPONENTS}</small>
+      <div className="forge__setup">
+        <div className="panel">
+          <div className="step">
+            <span className="step__n">1</span>
+            <h2 className="panel__title">Arma</h2>
+            <span className="muted small">{weapon}</span>
+          </div>
+          {WEAPON_GROUPS.map((g) => (
+            <div key={g.name} className="wgroup">
+              <span className="wgroup__name">{g.name}</span>
+              <div className="chips">
+                {g.items.map((w) => (
+                  <button key={w} className={`chip chip--button ${weapon === w ? 'chip--on' : ''}`} onClick={() => setWeapon(w)} aria-pressed={weapon === w}>
+                    {w}
+                  </button>
+                ))}
+              </div>
             </div>
-          </label>
-          <label className="field">
-            <span>Forjar para</span>
-            <select className="input" value={charId} onChange={(e) => setCharId(e.target.value)}>
-              {mine.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-              <option value="">(sem personagem)</option>
-            </select>
-          </label>
+          ))}
         </div>
 
-        <div className="calc">
-          <div>
-            <small>Raridade</small>
-            <b>{config.rarity.tests}</b>
+        <div className="panel">
+          <div className="step">
+            <span className="step__n">2</span>
+            <h2 className="panel__title">Raridade</h2>
+            <span className="muted small">define os golpes</span>
           </div>
-          <div>
-            <small>Metal</small>
-            <b>+{config.metal.difficulty}</b>
+          <div className="tiles2">
+            {RARITIES.map((r) => (
+              <button key={r.key} className={`tile2 rarity-${r.key} ${rarityKeyV === r.key ? 'is-on' : ''}`} onClick={() => setRarityKey(r.key)} aria-pressed={rarityKeyV === r.key}>
+                <b>{r.name}</b>
+                <small>{r.tests} golpes</small>
+              </button>
+            ))}
           </div>
-          <div>
-            <small>Componentes</small>
-            <b>+{config.components}</b>
-          </div>
-          <div className="calc__total">
-            <small>Golpes</small>
-            <b>{total}</b>
-          </div>
+          {config.rarity.note && <p className="callout">Divina: {config.rarity.note}.</p>}
         </div>
-        {config.rarity.note && <p className="callout">Divina: {config.rarity.note}.</p>}
 
-        <div className="row gap">
-          {phase === 'play' ? (
-            <button className="btn btn--ghost" onClick={abort}>
-              Abandonar
-            </button>
-          ) : (
-            <button className="btn btn--forge" onClick={start}>
-              <Icon name="flame" /> Acender a forja
-            </button>
-          )}
+        <div className="panel">
+          <div className="step">
+            <span className="step__n">3</span>
+            <h2 className="panel__title">Metal</h2>
+            <span className="muted small">dificuldade e durabilidade</span>
+          </div>
+          <div className="tiles2">
+            {METALS.map((m) => (
+              <button key={m.key} className={`tile2 metal-${m.key} ${metalKey === m.key ? 'is-on' : ''}`} onClick={() => setMetalKey(m.key)} aria-pressed={metalKey === m.key}>
+                <span className="swatch" aria-hidden />
+                <b>{m.name}</b>
+                <small>
+                  +{m.difficulty} golpe{m.difficulty > 1 ? 's' : ''} · dur. {m.durability}
+                </small>
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="callout callout--soft">
-          Regras provisórias: limites de raridade/metal por nível de Ferreiro e o tamanho das áreas ainda serão definidos pelo mestre.
-          O resultado de cada fabricação é enviado automaticamente ao mestre.
-        </p>
+
+        <div className="panel">
+          <div className="step">
+            <span className="step__n">4</span>
+            <h2 className="panel__title">Detalhes</h2>
+          </div>
+          <div className="fgrid">
+            <label className="field">
+              <span>Componentes (+1 golpe cada)</span>
+              <div className="stepper">
+                <button type="button" onClick={() => setComponents((c) => clampComponents(c - 1))} aria-label="Menos componentes">
+                  −
+                </button>
+                <output>{components}</output>
+                <button type="button" onClick={() => setComponents((c) => clampComponents(c + 1))} aria-label="Mais componentes">
+                  +
+                </button>
+                <small className="muted">máx. {MAX_COMPONENTS}</small>
+              </div>
+            </label>
+            <label className="field">
+              <span>Perícia Ferreiro</span>
+              <select className="input" value={smithLevel} onChange={(e) => setSmithLevel(+e.target.value)}>
+                {SMITH_LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    Nível {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Forjar para</span>
+              <select className="input" value={charId} onChange={(e) => setCharId(e.target.value)}>
+                {mine.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="">(sem personagem)</option>
+              </select>
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* ---------- Palco ---------- */}
-      <div className={`panel stage rarity-${rk} tone-${lastTone}`} ref={stageRef}>
+      <div className={`stage rarity-${rk} metal-${metalKey} tone-${lastTone}`} ref={stageRef}>
         <canvas className="stage__fx" ref={canvasRef} />
         <div className="stage__flash" ref={flashRef} />
 
         <div className="stage__hud">
-          <div>
-            <div className="eyebrow">{phase === 'play' ? `Golpe ${Math.min(index + 1, total)} de ${total}` : 'Forja'}</div>
-            <div className="stage__title">{itemName({ weapon, rarity: config.rarity.name, metal: config.metal.name })}</div>
+          <div className="stage__id">
+            <span className="rarity-dot" aria-hidden />
+            <div>
+              <div className="stage__title">{itemName({ weapon, rarity: config.rarity.name, metal: config.metal.name })}</div>
+              <div className="muted small">
+                {phase === 'play' ? `Golpe ${Math.min(index + 1, total)} de ${total}` : `${total} golpes · durabilidade base ${base}`}
+              </div>
+            </div>
           </div>
           <div className="row gap-sm">
             {phase === 'play' && streak >= 2 && (
@@ -511,86 +527,124 @@ function Workshop() {
                 ×{streak} perfeitos
               </span>
             )}
+            {phase === 'play' && (
+              <button className="btn btn--ghost btn--sm" onClick={abort}>
+                Abandonar
+              </button>
+            )}
             <button className="icon-btn" onClick={toggleMute} aria-label={muted ? 'Ativar som' : 'Silenciar'} title={muted ? 'Ativar som' : 'Silenciar'}>
               <Icon name={muted ? 'mute' : 'sound'} />
             </button>
           </div>
         </div>
 
+        {phase === 'play' && (
+          <div className="meters">
+            <div className="meter" title="Progresso da peça">
+              <span className="meter__label">Peça</span>
+              <span className="meter__track">
+                <span className="meter__fill meter__fill--prog" style={{ width: `${progress * 100}%` }} />
+              </span>
+            </div>
+            <div className="meter" title="Calor do metal (sobe com golpes bons)">
+              <span className="meter__label">Calor</span>
+              <span className="meter__track">
+                <span className="meter__fill meter__fill--heat" style={{ width: `${heat * 100}%` }} />
+              </span>
+            </div>
+          </div>
+        )}
         {(phase === 'play' || phase === 'done') && <Timeline items={results} current={phase === 'play' ? index : undefined} />}
 
-        <div className="scene" style={heatStyle}>
-          <div className="scene__glow" />
-          <svg viewBox="0 0 320 150" className="scene__svg" aria-hidden>
-            <defs>
-              <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#7d7a86" />
-                <stop offset="1" stopColor="#25232c" />
-              </linearGradient>
-              <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="#5a3b25" />
-                <stop offset="1" stopColor="#3a2517" />
-              </linearGradient>
-            </defs>
-            <path d="M88 112 H232 L248 94 H72 Z M110 112 L122 138 H198 L210 112 Z" fill="url(#steel)" stroke="#a8a2b2" strokeWidth="1.5" />
-            <path d="M58 94 Q40 92 36 78 L72 82 Z" fill="url(#steel)" />
-            <g key={swing} className={swing > 0 ? 'hammer hammer--swing' : 'hammer'}>
-              <rect x="206" y="12" width="9" height="78" rx="3" fill="url(#wood)" transform="rotate(28 210 52)" />
-              <rect x="174" y="10" width="58" height="28" rx="5" fill="url(#steel)" stroke="#bdb7c8" strokeWidth="1.5" transform="rotate(28 210 52)" />
-            </g>
-          </svg>
-          <div className={`ingot ${sub === 'tell' ? 'ingot--tell' : ''}`} ref={ingotRef}>
-            <i />
+        <div className="stage__grid">
+          <div className="stage__scene">
+            <Scene heat={heat} progress={progress} tell={sub === 'tell' && phase === 'play'} swing={swing} anchorRef={anchorRef} />
           </div>
-        </div>
 
-        <div className="stage__body">
-          {phase === 'setup' && (
-            <p className="stage__hint">
-              Escolha os moldes e acenda a forja. Quando o metal brilhar, a roda aparece: golpeie quando o ponteiro cruzar a área colorida.
-              Golpear cedo demais é <b>falha crítica</b>.
-            </p>
-          )}
-
-          {phase === 'play' && (
-            <>
-              <div className="dial-wrap">
-                <Dial needleRef={needleRef} trailRef={trailRef} center={center} zone={zone} live={live} hitAngle={hitAngle} tone={lastTone} />
-                {pop && (
-                  <div key={pop.key} className={`pop pop--${pop.tone}`}>
-                    {pop.text}
+          <div
+            className="stage__body"
+            onPointerDown={(e) => {
+              if (phase !== 'play' || (e.target as HTMLElement).closest('button')) return;
+              e.preventDefault();
+              strike();
+            }}
+          >
+            {phase === 'setup' && (
+              <div className="launch">
+                <div className="launch__sum">
+                  <div className="launch__name">{itemName({ weapon, rarity: config.rarity.name, metal: config.metal.name }).replace(/^./, (c) => c.toUpperCase())}</div>
+                  <div className="launch__facts">
+                    <span>
+                      <b>{total}</b> golpes
+                    </span>
+                    <span>
+                      <b>{base}</b> durabilidade base
+                    </span>
+                    <span>
+                      <b>{config.rarity.tests}</b> + <b>{config.metal.difficulty}</b> + <b>{config.components}</b>
+                    </span>
                   </div>
-                )}
-                {!live && sub !== 'resolving' && <div className="dial-wait">{sub === 'tell' ? 'Agora…' : 'Aguarde o metal brilhar'}</div>}
+                </div>
+                <button className="btn btn--forge" onClick={start}>
+                  <Icon name="flame" /> Acender a forja
+                </button>
+                <p className="stage__hint">
+                  Quando o metal brilhar, a roda aparece: golpeie quando o ponteiro cruzar a área colorida. Golpear cedo demais é <b>falha crítica</b>.
+                </p>
+                <p className="callout callout--soft">
+                  Regras provisórias: limites de raridade/metal por nível de Ferreiro e o tamanho das áreas serão definidos pelo mestre. O resultado é enviado automaticamente ao mestre.
+                </p>
               </div>
-              <div className="legend">
-                <span><i className="d-good" />Bom</span>
-                <span><i className="d-better" />Melhor</span>
-                <span><i className="d-perfect" />Perfeito</span>
-              </div>
-              <button className="btn btn--strike" tabIndex={-1} onPointerDown={(e) => { e.preventDefault(); strike(); }}>
-                GOLPEAR <small>(espaço)</small>
-              </button>
-            </>
-          )}
+            )}
 
-          {phase === 'done' && summary && (
-            <Result
-              s={summary}
-              sendState={sendState}
-              sendError={sendError}
-              retry={() => void send(summary)}
-              character={character}
-              inventoryMsg={inventoryMsg}
-              onInventory={async () => {
-                if (!character) return;
-                const err = await saveToInventory(character, summary);
-                setInventoryMsg(err ? `Erro: ${err}` : `Guardado no inventário de ${character.name}.`);
-              }}
-              onAgain={start}
-              onSetup={() => setPhase('setup')}
-            />
-          )}
+            {phase === 'play' && (
+              <>
+                <div className="dial-wrap">
+                  <Dial needleRef={needleRef} trailRef={trailRef} center={center} zone={zone} live={live} hitAngle={hitAngle} tone={lastTone} />
+                  {pop && (
+                    <div key={pop.key} className={`pop pop--${pop.tone}`}>
+                      {pop.text}
+                    </div>
+                  )}
+                  {!live && sub !== 'resolving' && <div className="dial-wait">{sub === 'tell' ? 'Agora…' : 'Aguarde o metal brilhar'}</div>}
+                </div>
+                <div className="legend">
+                  <span><i className="d-good" />Bom</span>
+                  <span><i className="d-better" />Melhor</span>
+                  <span><i className="d-perfect" />Perfeito</span>
+                </div>
+                <button
+                  className="btn btn--strike"
+                  tabIndex={-1}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    strike();
+                  }}
+                >
+                  GOLPEAR <small>toque em qualquer lugar · espaço</small>
+                </button>
+              </>
+            )}
+
+            {phase === 'done' && summary && (
+              <Result
+                s={summary}
+                sendState={sendState}
+                sendError={sendError}
+                retry={() => void send(summary)}
+                character={character}
+                inventoryMsg={inventoryMsg}
+                onInventory={async () => {
+                  if (!character) return;
+                  const err = await saveToInventory(character, summary);
+                  setInventoryMsg(err ? `Erro: ${err}` : `Guardado no inventário de ${character.name}.`);
+                }}
+                onAgain={start}
+                onSetup={() => setPhase('setup')}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -610,31 +664,49 @@ function Result(props: {
 }) {
   const { s, sendState, sendError, retry, character, inventoryMsg, onInventory, onAgain, onSetup } = props;
   const rk = rarityKey(s.rarity);
+  const { grade } = gradeOf(s);
   const failedDivine = s.divineOk === false;
   return (
     <div className={`result rarity-${rk}`}>
       <div className="result__banner">
-        <div className="eyebrow">{failedDivine ? 'Forja divina falhou' : 'Peça concluída'}</div>
-        <div className="result__name">{itemName(s).replace(/^./, (c) => c.toUpperCase())}</div>
-        {s.divineOk && <div className="result__divine">✦ Todos os golpes perfeitos ✦</div>}
+        <div className={`grade grade--${grade}`} aria-label={`Nota ${grade}`}>
+          <span>{grade}</span>
+        </div>
+        <div>
+          <div className="eyebrow">{failedDivine ? 'Forja divina falhou' : 'Peça concluída'}</div>
+          <div className="result__name">{itemName(s).replace(/^./, (c) => c.toUpperCase())}</div>
+          {s.divineOk && <div className="result__divine">✦ Todos os golpes perfeitos ✦</div>}
+        </div>
       </div>
       <div className="result__grid">
         <Stat label="Perfeitos" value={s.perfects} tone="perfect" />
         <Stat label="Melhores" value={s.betters} tone="better" />
-        <Stat label="Falhas críticas" value={s.criticals} tone="crit" />
-        <Stat label="Bônus de dano" value={`+${s.damageBonus}`} big />
-        <Stat label="Durabilidade" value={s.durability} big />
+        <Stat label="Bons" value={s.goods} tone="good" />
+        <Stat label="Falhas" value={s.misses + s.criticals} tone="crit" sub={s.criticals ? `${s.criticals} críticas` : undefined} />
+      </div>
+      <div className="result__main">
+        <div className="statbig">
+          <small>Bônus de dano</small>
+          <b>+{s.damageBonus}</b>
+        </div>
+        <div className="statbig">
+          <small>Durabilidade</small>
+          <b>{s.durability}</b>
+        </div>
       </div>
       <div className={`sent sent--${sendState}`}>
         {sendState === 'sending' && 'Enviando o resultado ao mestre…'}
         {sendState === 'sent' && '✓ Resultado enviado ao mestre'}
         {sendState === 'error' && (
           <>
-            {sendError} <button className="link" onClick={retry}>Tentar de novo</button>
+            {sendError}{' '}
+            <button className="link" onClick={retry}>
+              Tentar de novo
+            </button>
           </>
         )}
       </div>
-      <div className="row gap wrap">
+      <div className="row gap wrap center">
         <button className="btn btn--forge" onClick={onAgain}>
           Nova fabricação
         </button>
@@ -652,11 +724,12 @@ function Result(props: {
   );
 }
 
-function Stat({ label, value, tone, big }: { label: string; value: number | string; tone?: string; big?: boolean }) {
+function Stat({ label, value, tone, sub }: { label: string; value: number | string; tone?: string; sub?: string }) {
   return (
-    <div className={`stat ${tone ? `stat--${tone}` : ''} ${big ? 'stat--big' : ''}`}>
+    <div className={`stat ${tone ? `stat--${tone}` : ''}`}>
       <small>{label}</small>
       <b>{value}</b>
+      {sub && <small className="stat__sub">{sub}</small>}
     </div>
   );
 }
@@ -672,7 +745,12 @@ function History() {
       <p className="muted">{masterAccess ? 'Todas as fabricações da mesa, em tempo real.' : 'Suas fabricações.'}</p>
       {error && <p className="alert">{error}</p>}
       {loading && <p className="muted">Carregando…</p>}
-      {!loading && rows.length === 0 && <p className="muted">Nenhuma fabricação ainda.</p>}
+      {!loading && rows.length === 0 && (
+        <div className="empty">
+          <Icon name="anvil" size={32} />
+          <p>Nenhuma fabricação ainda.</p>
+        </div>
+      )}
       <div className="grid-cards">
         {rows.map((r) => (
           <ForgeCard

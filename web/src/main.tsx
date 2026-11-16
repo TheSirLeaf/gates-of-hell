@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { AuthProvider } from './lib/auth';
 import './styles/app.css';
+import './styles/features.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -14,3 +15,10 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 );
+
+// App instalável (PWA): só em produção, para não atrapalhar o desenvolvimento.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

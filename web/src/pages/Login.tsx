@@ -1,26 +1,57 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../lib/auth';
 
 export function Login() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resendConfirmation } = useAuth();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // Link de confirmação vencido/usado: o Supabase volta para o site com o erro na URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const code = params.get('error_code');
+    if (code) {
+      setError(code === 'otp_expired' ? 'O link de confirmação expirou ou já foi usado. Entre com seu e-mail e senha para pedir outro.' : (params.get('error_description') ?? 'Não foi possível confirmar o e-mail.').replace(/\+/g, ' '));
+      history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
+    setNeedsConfirm(false);
     if (mode === 'up' && !name.trim()) {
       setError('Informe o seu nome (aparece no chat).');
       return;
     }
     setBusy(true);
-    const err = mode === 'in' ? await signIn(email.trim(), password) : await signUp(email.trim(), password, name.trim());
+    const res = mode === 'in' ? await signIn(email.trim(), password) : await signUp(email.trim(), password, name.trim());
+    setBusy(false);
+    if (res.error) setError(res.error);
+    setNeedsConfirm(Boolean(res.needsConfirmation));
+    if (!res.error && res.needsConfirmation) {
+      setNotice(`Enviamos um link de confirmação para ${email.trim()}. Abra o e-mail (olhe também o spam) e depois entre.`);
+      setMode('in');
+      setPassword('');
+    }
+  }
+
+  async function resend() {
+    setBusy(true);
+    const err = await resendConfirmation(email.trim());
     setBusy(false);
     if (err) setError(err);
+    else {
+      setError(null);
+      setNotice('Novo e-mail enviado. Pode levar alguns minutos.');
+    }
   }
 
   return (
@@ -59,7 +90,13 @@ export function Login() {
           />
         </label>
 
-        {error && <p className="text-danger">{error}</p>}
+        {error && <p className="text-danger" role="alert">{error}</p>}
+        {notice && <p className="callout" role="status">{notice}</p>}
+        {needsConfirm && email.trim() && (
+          <button type="button" className="btn btn--ghost btn--block" onClick={() => void resend()} disabled={busy}>
+            Reenviar e-mail de confirmação
+          </button>
+        )}
 
         <button className="btn btn--block" disabled={busy}>
           {busy ? 'Aguarde…' : mode === 'in' ? 'Entrar' : 'Criar conta'}

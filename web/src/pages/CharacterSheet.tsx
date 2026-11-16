@@ -117,6 +117,33 @@ function Sheet({ source }: { source: Character }) {
         <Icon name="back" size={16} /> Fichas
       </Link>
 
+      {/* Faixa fixa de vitais (celular): ajuste rápido durante o jogo, sem rolar a ficha */}
+      <div className="vstrip" role="group" aria-label="Vitais rápidas">
+        {(
+          [
+            ['Vida', 'vida', c.vida, c.vida_max, 'vida'],
+            ['Postura', 'postura', c.postura, c.postura_max, 'postura'],
+            ['Stamina', 'stamina', c.stamina, c.stamina_max, 'stamina'],
+          ] as const
+        ).map(([label, tone, cur, max, key]) => (
+          <div key={key} className={`vstrip__item vstrip__item--${tone}`}>
+            <span className="vstrip__label">{label}</span>
+            <div className="vstrip__ctl">
+              <button type="button" onClick={() => patch({ [key]: Math.max(0, cur - 1) } as Partial<Character>)} aria-label={`Diminuir ${label}`}>
+                −
+              </button>
+              <b>
+                {cur}
+                <small>/{max}</small>
+              </b>
+              <button type="button" onClick={() => patch({ [key]: Math.min(9999, cur + 1) } as Partial<Character>)} aria-label={`Aumentar ${label}`}>
+                +
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* HERÓI */}
       <header className="hero">
         <span className="hero__avatar">{(c.name || '?').charAt(0).toUpperCase()}</span>
